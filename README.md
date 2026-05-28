@@ -62,12 +62,12 @@ baoxiao/
 
 ### 3. 一键自动运行
 
-该功能的完整核心步骤已打包为 IDE 内部 Skill，存放于 `C:\Users\GXY\.gemini\config\skills\auto-reimbursement-agent\scripts\auto_reimburse.py` 中。
+该功能的完整核心步骤已打包为自动化脚本，存放于工程目录下的 `auto-reimbursement-agent/scripts/auto_reimburse.py`。
 
 要在一行命令中完成**全部照片识别、行程计算、Excel 报销录入、公式修正和压缩照片存证**，请在项目根目录下执行以下命令：
 
 ```bash
-python C:\Users\GXY\.gemini\config\skills\auto-reimbursement-agent\scripts\auto_reimburse.py
+python auto-reimbursement-agent/scripts/auto_reimburse.py
 ```
 
 执行完毕后，控制台将输出以下信息：
