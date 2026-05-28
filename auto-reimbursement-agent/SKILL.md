@@ -22,7 +22,7 @@ This skill bundles an automation script at `scripts/auto_reimburse.py`. It uses 
 
 To execute the entire flow automatically, run:
 ```bash
-python C:\Users\GXY\.gemini\config\skills\auto-reimbursement-agent\scripts\auto_reimburse.py
+python auto-reimbursement-agent/scripts/auto_reimburse.py
 ```
 *(Note: Replace `auto_reimburse.py` path with the correct local path in your environment if needed.)*
 
