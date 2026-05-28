@@ -111,7 +111,8 @@ def extract_data_from_img(img_path):
         "ocr_raw": ocr_texts
     }
 
-image_files = sorted([f for f in os.listdir('.') if f.lower().endswith('.jpg')])
+image_dir = 'photos' if os.path.exists('photos') else '.'
+image_files = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.lower().endswith('.jpg')])
 all_data = []
 
 for f in image_files:

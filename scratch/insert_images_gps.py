@@ -162,7 +162,8 @@ for idx, item in enumerate(images_data):
     
     # Path setup
     img_path = item['file']
-    comp_path = os.path.join('compressed', img_path)
+    img_name = os.path.basename(img_path)
+    comp_path = os.path.join('compressed', img_name)
     
     # Compress image to 15% width and height (if not already done)
     if not os.path.exists(comp_path):
@@ -178,7 +179,7 @@ for idx, item in enumerate(images_data):
     sheet.add_image(excel_img, f"B{r}")
     
     # Write metadata
-    c_file = sheet.cell(row=r, column=3, value=item['file'])
+    c_file = sheet.cell(row=r, column=3, value=img_name)
     c_odo = sheet.cell(row=r, column=4, value=item['odo'])
     c_loc = sheet.cell(row=r, column=5, value=item['location'])
     c_gps = sheet.cell(row=r, column=6, value=item['gps'])

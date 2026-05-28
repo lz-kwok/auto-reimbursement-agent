@@ -46,7 +46,7 @@ pip install easyocr openpyxl pillow torch
 
 ```
 baoxiao/
-├── 1.JPG ~ 5.JPG, IMG_7528.JPG ~ IMG_7663.JPG  # 21张现场车辆仪表照片
+├── photos/                                     # 21张现场车辆仪表盘原始照片
 ├── 用车费用明细.xlsx                           # 待填充的报销单模板（填充后大小约 160KB）
 ├── compressed/                                 # 压缩后的仪表盘存证照片临时存放目录 (15% 尺寸)
 ├── scratch/                                    # 调试与验证脚本目录

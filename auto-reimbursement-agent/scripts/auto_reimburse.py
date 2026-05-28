@@ -109,7 +109,9 @@ def parse_gps(ocr_raw):
         return lng
     return ""
 
-def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='.'):
+def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='photos'):
+    if not os.path.exists(img_dir) and img_dir == 'photos':
+        img_dir = '.'
     # 1. Gather all JPG images
     image_files = sorted([os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.lower().endswith('.jpg')])
     if not image_files:
