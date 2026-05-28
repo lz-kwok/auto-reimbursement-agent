@@ -1,0 +1,3 @@
+interface:
+  display_name: "自动报销Agent"
+  short_description: "提取仪表盘照片里的里程、时间与地点，自动录入并格式化报销单并插入照片存证Log。"
