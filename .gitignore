@@ -42,3 +42,6 @@ compressed/
 scratch/
 ~$*.xlsx
 ~$*.docx
+
+# Ignore API documents containing private endpoints
+api/
