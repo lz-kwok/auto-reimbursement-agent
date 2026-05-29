@@ -16,11 +16,11 @@ Use this skill when:
 
 ## Reusable Automation Script
 
-This skill bundles an automation script at `scripts/auto_reimburse.py`. It uses `easyocr` and `pillow` to extract data, sorts them by odometer mileage, constructs travel legs based on location changes, dynamically inserts rows in the Excel template, updates Excel formulas, and inserts compressed dashboard pictures.
+This skill bundles an automation script at `scripts/auto_reimburse.py`. It uses `easyocr` and `pillow` to extract data, sorts them by odometer mileage, constructs travel legs based on location changes, and—if `trans/trans.pdf` is present—automatically parses the toll records and maps them to the Nanjing-Hefei commute legs. Finally, it dynamically inserts rows in the Excel template, updates Excel formulas, and inserts compressed dashboard pictures.
 
 ### How to Run the Automation Script
 
-To execute the entire flow automatically, run:
+To execute the entire flow automatically (including photos OCR and PDF toll calculation), run:
 ```bash
 python auto-reimbursement-agent/scripts/auto_reimburse.py
 ```
@@ -43,7 +43,17 @@ Sort all images by their odometer readings. Construct a travel leg whenever the 
 - **Start Odometer**: Mileage of the first image.
 - **End Odometer**: Mileage of the second image.
 
-### Step 3: Excel Writing and Insertion
+### Step 3: Toll Fee Parsing (trans.pdf)
+If `trans/trans.pdf` is provided, follow these matching rules to determine the "过路费" (toll fee) for each leg:
+1. **Cross-Province Split**: Commutes between Nanjing and Hefei are split into a Jiangsu-side segment (always **9.50** at `曹庄站` or `六合南站` in this dataset) and an Anhui-side segment (determined by Hefei entrance/exit: `方兴大道` is **76.50**, `包河大道/曹庄` is **71.25**, `包河大道/吴庄` is **63.65**, `龙塘` is **66.50**).
+   - *Note on Unlisted Stations*: If a trip contains toll stations or routes not listed in these examples:
+     - **Automated Script**: The script handles this dynamically. It classifies tolls by transaction structure (separating Jiangsu's fixed `9.50` segments from main Anhui segments based on sequence) rather than hardcoding station names, meaning new stations will be parsed correctly.
+     - **Manual Matching**: Search the PDF on the trip's date for the actual toll station names printed. Sum all segments corresponding to that specific passage. If a segment is missing in the PDF batch (due to delayed invoicing), only sum what is present in the PDF to ensure the sheet's total matches the PDF invoice exactly.
+2. **Commuter Symmetry**: The return trip of a specific route has the same cost structure.
+3. **Invoice Consolidation ("多段行程并一张")**: Invoices are grouped in batch. If a Jiangsu border segment (9.50) is adjacent to an Anhui segment with the same date in the PDF, they belong to the same leg and must be summed together. If not (meaning it was not invoiced in this batch), only the Anhui segment's amount is entered.
+4. **Chronological Matching**: Filter out the Nanjing-Hefei legs from the Excel sheet. Match them one-to-one chronologically to the Anhui-side segments in `trans.pdf`. Sum any paired Jiangsu segments. For other local/commute routes not recorded in the PDF (e.g., Nanjing $\leftrightarrow$ Ma'anshan), enter **0.00**.
+
+### Step 4: Excel Writing and Insertion
 1. Load `用车费用明细.xlsx`.
 2. Find the row index of `合计：` in Column B.
 3. If the number of travel legs exceeds the number of empty rows between Row 5 and the `合计：` row:
@@ -51,11 +61,12 @@ Sort all images by their odometer readings. Construct a travel leg whenever the 
    - **CRITICAL**: In `openpyxl`, you must remove any merged cells at or below Row 13 before calling `insert_rows`. Call `insert_rows(total_row_idx, rows_to_insert)`. Save and reload the workbook. This avoids throwing `AttributeError: 'MergedCell' object attribute 'value' is read-only`.
    - Re-merge the signature row (e.g. `C22:D22`) and final amount cell (e.g. `G25:I25`) at their new shifted indices.
 4. Populate Column A (Date), Column C (Start City), Column D (Start Odometer), Column E (End City), and Column F (End Odometer) for each leg.
-5. In each leg row, write formulas for Column H (`=F[row]-D[row]`) and Column I (`=H[row]*0.8`).
-6. Update the `合计：` row formulas: Column H (`=SUM(H5:H[total-1])`), Column I (`=SUM(I5:I[total-1])`), Column K (`=SUM(K5:K[total-1])`).
-7. Update the summary table below `合计：` (total mileage, total toll fees, and final reimbursement amount `=C[summary_row]*0.8+E[summary_row]+F[summary_row]`).
+5. Populate Column K (过路费) with the toll fees determined in Step 3.
+6. In each leg row, write formulas for Column H (`=F[row]-D[row]`) and Column I (`=H[row]*0.8`).
+7. Update the `合计：` row formulas: Column H (`=SUM(H5:H[total-1])`), Column I (`=SUM(I5:I[total-1])`), Column K (`=SUM(K5:K[total-1])`).
+8. Update the summary table below `合计：` (total mileage, total toll fees, and final reimbursement amount `=C[summary_row]*0.8+E[summary_row]+F[summary_row]`).
 
-### Step 4: Photo Log Attachment
+### Step 5: Photo Log Attachment
 1. Resize each dashboard photo to **15%** of its width and height (e.g. from `1080x1440` to `162x216` pixels) using PIL. Save them with JPEG quality `70` to keep the Excel file lightweight (~160 KB instead of >7 MB).
 2. Starting from 2 rows below the summary section (e.g. Row 27), create a Photo Log Header: `车辆仪表照片`, `对应图片文件名`, `仪表盘总里程 (km)`, `照片水印地点`, `经纬度`, `拍摄日期`.
 3. Set Column B width to `22`, Column E to `30`, Column F to `30`, and Column G to `15`.

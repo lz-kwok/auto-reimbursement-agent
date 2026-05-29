@@ -109,6 +109,109 @@ def parse_gps(ocr_raw):
         return lng
     return ""
 
+def get_tolls_from_pdf(pdf_path, legs):
+    if not os.path.exists(pdf_path):
+        print(f"Toll PDF not found at {pdf_path}. All tolls set to 0.0.")
+        return [0.0] * len(legs)
+        
+    pdf_text = ""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(pdf_path)
+        for page in reader.pages:
+            pdf_text += page.extract_text() or ""
+    except Exception as e:
+        print(f"Failed to read PDF using pypdf: {e}")
+        try:
+            import pdfplumber
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    pdf_text += page.extract_text() or ""
+        except Exception as e2:
+            print(f"Failed to read PDF using pdfplumber: {e2}")
+            
+    if not pdf_text:
+        print("Could not extract any text from toll PDF. All tolls set to 0.0.")
+        return [0.0] * len(legs)
+        
+    lines = [line.strip() for line in pdf_text.split('\n') if line.strip()]
+    segments = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        match = re.match(r'^(\d+)\s+(\d{8})', line)
+        if match:
+            seg_idx = int(match.group(1))
+            date_str = match.group(2)
+            i += 1
+            seg_lines = []
+            while i < len(lines) and not re.match(r'^(\d+)\s+(\d{8})', lines[i]) and "共16段行程" not in lines[i]:
+                seg_lines.append(lines[i])
+                i += 1
+            
+            numbers = []
+            station_text = ""
+            for sl in seg_lines:
+                if "至" in sl:
+                    station_text += " 至 "
+                elif re.search(r'\d+\.\d+', sl):
+                    numbers.extend(re.findall(r'\d+\.\d+', sl))
+                else:
+                    station_text += sl.replace(" ", "")
+            
+            amount = 0.0
+            if numbers:
+                amount = float(numbers[0])
+            
+            segments.append({
+                "index": seg_idx,
+                "date": f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}",
+                "stations": station_text,
+                "amount": amount
+            })
+        else:
+            i += 1
+            
+    # Pair adjacent segments
+    pdf_tolls = []
+    idx = 0
+    while idx < len(segments):
+        seg = segments[idx]
+        if seg["amount"] == 9.50:
+            if idx + 1 < len(segments) and segments[idx + 1]["amount"] != 9.50 and segments[idx + 1]["date"] == seg["date"]:
+                pdf_tolls.append(seg["amount"] + segments[idx + 1]["amount"])
+                idx += 2
+            else:
+                pdf_tolls.append(seg["amount"])
+                idx += 1
+        else:
+            if idx + 1 < len(segments) and segments[idx + 1]["amount"] == 9.50 and segments[idx + 1]["date"] == seg["date"]:
+                pdf_tolls.append(seg["amount"] + segments[idx + 1]["amount"])
+                idx += 2
+            else:
+                pdf_tolls.append(seg["amount"])
+                idx += 1
+                
+    # Match the paired PDF tolls with Hefei legs chronologically
+    hefei_leg_indices = []
+    for idx_leg, leg in enumerate(legs):
+        sc = leg['start_city'] or ""
+        ec = leg['end_city'] or ""
+        if ("合肥" in sc and "南京" in ec) or ("南京" in sc and "合肥" in ec):
+            hefei_leg_indices.append(idx_leg)
+            
+    tolls = [0.0] * len(legs)
+    if len(hefei_leg_indices) == len(pdf_tolls):
+        for i_hefei, orig_idx in enumerate(hefei_leg_indices):
+            tolls[orig_idx] = pdf_tolls[i_hefei]
+    else:
+        print(f"Warning: Hefei legs count ({len(hefei_leg_indices)}) does not match PDF tolls count ({len(pdf_tolls)}).")
+        limit = min(len(hefei_leg_indices), len(pdf_tolls))
+        for i_hefei in range(limit):
+            tolls[hefei_leg_indices[i_hefei]] = pdf_tolls[i_hefei]
+            
+    return tolls
+
 def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='photos'):
     if not os.path.exists(img_dir) and img_dir == 'photos':
         img_dir = '.'
@@ -271,6 +374,9 @@ def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='photos
         new_total_row_idx = total_row_idx
         
     # Write leg data
+    pdf_path = os.path.join(os.path.dirname(os.path.abspath(excel_file)), 'trans', 'trans.pdf')
+    tolls = get_tolls_from_pdf(pdf_path, legs)
+    
     for idx, leg in enumerate(legs):
         r = 5 + idx
         sheet.cell(row=r, column=1, value=leg['date'])
@@ -280,6 +386,7 @@ def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='photos
         sheet.cell(row=r, column=6, value=leg['end_odo'])
         sheet.cell(row=r, column=8, value=f"=F{r}-D{r}")
         sheet.cell(row=r, column=9, value=f"=H{r}*0.8")
+        sheet.cell(row=r, column=11, value=tolls[idx] if idx < len(tolls) else 0.0)
         
     # Re-merge cells shifted down
     sig_row = new_total_row_idx + 1

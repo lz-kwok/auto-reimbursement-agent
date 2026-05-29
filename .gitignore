@@ -37,3 +37,8 @@ compressed/
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary files & Scratch folders
+scratch/
+~$*.xlsx
+~$*.docx
