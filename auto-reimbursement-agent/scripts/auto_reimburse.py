@@ -213,6 +213,73 @@ def get_tolls_from_pdf(pdf_path, legs):
     return tolls
 
 def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='photos'):
+    # Try to load config.json
+    config = {
+        "excel_file": excel_file,
+        "template_file": "用车费用明细_template.xlsx",
+        "img_dir": img_dir,
+        "title": "2026年4月份出差车辆行车记录表",
+        "license_plate": "苏A859EB",
+        "department_reimburser": "报销部门：亥客技术                     报销人：郭良志",
+        "document_date": "制表日期："
+    }
+    
+    config_path = 'config.json'
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                user_config = json.load(f)
+                config.update(user_config)
+            print(f"Loaded configuration from {config_path}")
+        except Exception as e:
+            print(f"Warning: Failed to load {config_path}: {e}")
+            
+    excel_file = config.get("excel_file", excel_file)
+    img_dir = config.get("img_dir", img_dir)
+    template_file = config.get("template_file", "用车费用明细_template.xlsx")
+    
+    # Dynamically resolve document_date to use current system date
+    today = datetime.date.today()
+    current_date_str = f"{today.year}年{today.month}月{today.day}日"
+    configured_date = config.get("document_date", "")
+    
+    if configured_date:
+        pattern_cn = r'\d{4}年\d{1,2}月\d{1,2}日'
+        pattern_dash = r'\d{4}-\d{2}-\d{2}'
+        pattern_dot = r'\d{4}\.\d{2}\.\d{2}'
+        
+        if re.search(pattern_cn, configured_date):
+            document_date_final = re.sub(pattern_cn, current_date_str, configured_date)
+        elif re.search(pattern_dash, configured_date):
+            dash_str = today.strftime('%Y-%m-%d')
+            document_date_final = re.sub(pattern_dash, dash_str, configured_date)
+        elif re.search(pattern_dot, configured_date):
+            dot_str = today.strftime('%Y.%m.%d')
+            document_date_final = re.sub(pattern_dot, dot_str, configured_date)
+        else:
+            if configured_date.endswith("：") or configured_date.endswith(":"):
+                document_date_final = f"{configured_date}{current_date_str}"
+            elif "制表" in configured_date and not any(c in configured_date for c in [":", "："]):
+                document_date_final = f"{configured_date}：{current_date_str}"
+            else:
+                document_date_final = f"{configured_date}{current_date_str}"
+    else:
+        document_date_final = f"制表日期：{current_date_str}"
+        
+    config["document_date"] = document_date_final
+    
+    # Copy fresh template to excel_file if template exists
+    if os.path.exists(template_file):
+        try:
+            import shutil
+            shutil.copy(template_file, excel_file)
+            print(f"Copied fresh template from {template_file} to {excel_file}")
+        except Exception as e:
+            print(f"Warning: Failed to copy template {template_file} to {excel_file}: {e}")
+
+    # Store config in an attribute or keep local variables
+    run_auto_reimbursement.config = config
+
     if not os.path.exists(img_dir) and img_dir == 'photos':
         img_dir = '.'
     # 1. Gather all JPG images
@@ -311,6 +378,13 @@ def run_auto_reimbursement(excel_file='用车费用明细.xlsx', img_dir='photos
         
     wb = openpyxl.load_workbook(excel_file)
     sheet = wb.active
+    
+    # Write custom user configuration to header cells
+    config = run_auto_reimbursement.config
+    sheet.cell(row=1, column=1, value=config.get("title", "2026年4月份出差车辆行车记录表"))
+    sheet.cell(row=2, column=2, value=config.get("license_plate", "苏A859EB"))
+    sheet.cell(row=2, column=3, value=config.get("department_reimburser", "报销部门：亥客技术                     报销人：郭良志"))
+    sheet.cell(row=2, column=9, value=config.get("document_date", "制表日期：2026年5月28日"))
     
     # Locate '合计：'
     total_row_idx = None
